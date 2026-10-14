@@ -1,4 +1,5 @@
 import time
+import math
 from datetime import datetime
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
@@ -8,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 # panel reads as an almost blank black screen with a couple of faint lines.
 # These values keep the dark theme but push every element well clear of black.
 BG = '#000000'; PANEL = '#1b1230'; LINE = '#a98cc2'; MUTED = '#cdbcdd'
-WHITE = '#ffffff'; VIOLET = '#cfa8ff'; RED = '#ff6b8a'; SELECT = '#2a1840'
+WHITE = '#ffffff'; BRIGHT = '#ffffff'; VIOLET = '#cfa8ff'; RED = '#ff6b8a'; SELECT = '#2a1840'
 # Swappable themes. The Model rebinds the module-level palette globals
 # when a theme is picked: render() and its helpers all read the same
 # globals, so one update re-themes every page at once. WHITE stays
@@ -150,7 +151,7 @@ class Model:
             # Any key leaves the QR page.
             self._back()
         elif self.page=='settings':
-            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%7
+            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%8
             elif key in ('OK','RIGHT'):
                 if self.index==0:return 'rotate'
                 if self.index==1:self.asleep=True
@@ -243,7 +244,7 @@ class Model:
             elif self.page=='settings':
                 rows=[f'Rotate screen / {rotation}°','Sleep screen',
                       'Test buttons','Test colors','Update from GitHub',
-                      'Dashboard QR',f'Theme / {self.theme}']
+                      'Dashboard QR','Wi-Fi radar',f'Theme / {self.theme}']
                 for i,line in enumerate(rows):
                     y=74+i*20
                     if self.index==i:d.rounded_rectangle((8,y,231,y+18),radius=4,fill=SELECT,outline=VIOLET,width=2)
@@ -263,7 +264,19 @@ class Model:
                     d.rounded_rectangle((x,y,x+52,y+20),radius=3,fill=color,outline='#ffffff')
                     clipped(d,(x+58,y+4),label,49,10,MUTED)
                 d.text((14,208),'PRESS ANY KEY / RETURN TO MENU',font=font(10,True),fill=RED)
+            elif self.page=='radar':
+                d.text((14,20),'WIFI RADAR',font=font(15,True),fill=VIOLET)
+                try:
+                    import wifi_tools
+                    aps = wifi_tools.scan_wifi() or []
+                except Exception:
+                    aps = []
+                self._radar(img,d,aps)
+                d.text((12,226),'1 BACK   2 HOME   3 STOP',font=font(11),fill=MUTED)
+                d.ellipse((222,226,232,236),fill=VIOLET if hardware else RED)
+                return img
             elif self.page=='qr':
+                d.text((14,74),'DASHBOARD',font=font(15,True),fill=VIOLET)
                 self._qr(d,stats)
         d.line((12,220,228,220),fill=LINE,width=2)
         d.text((12,226),'1 BACK   2 HOME   3 STOP',font=font(11),fill=MUTED)
@@ -280,6 +293,18 @@ class Model:
         cx,cy,r=120,102,34
         d.ellipse((cx-r,cy-r,cx+r,cy+r),fill=VIOLET)
         d.ellipse((cx-r+16,cy-r-10,cx+r+16,cy+r-10),fill=BG)
+        return img
+
+    def _radar(self,img,d,aps):
+        t=time.monotonic(); cx,cy=120,100; mr=90
+        d.ellipse((cx-mr,cy-mr,cx+mr,cy+mr),outline=MUTED)
+        d.ellipse((cx-mr//2,cy-mr//2,cx+mr//2,cy+mr//2),outline=MUTED)
+        d.line((cx-mr,cy,cx+mr,cy),fill=MUTED); d.line((cx,cy-mr,cx,cy+mr),fill=MUTED)
+        a=(t*2.0)%(2*math.pi); sx=cx+int(mr*math.cos(a)); sy=cy+int(mr*math.sin(a)); d.line((cx,cy,sx,sy),fill=VIOLET)
+        for ap in aps[:15]:
+            try: rssi=ap.get("rssi",-70)
+            except: rssi=-70
+            dist=(100+rssi)*mr//60; a2=a+(ap.get("channel",1)%11)*0.3; px=cx+int(dist*math.cos(a2)); py=cy+int(dist*math.sin(a2)); d.point((px,py),fill=BRIGHT)
         return img
 
     @staticmethod

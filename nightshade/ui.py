@@ -117,6 +117,8 @@ class Model:
             self.page='scripts'
         elif self.page=='settings':
             self.page='home';self.index=3
+        elif self.page=='radar':
+            self.page='scripts'
         elif self.page in ('controls','colors','qr'):
             self.page='settings'
         else:
@@ -125,8 +127,6 @@ class Model:
     def key(self,key,runner):
         self.last_key=key
         self.last_input=time.monotonic()
-        self._radar_aps=[]; self._radar_stamp=0.0; self._radar_scanning=False
-        self._radar_lock=threading.Lock()
         if self.asleep: self.asleep=False; return None
         if key=='KEY3': runner.stop(); self.notice='Stop requested'; return None
         if key=='KEY2': self.page='home';self.index=0;self.section_index=0;self.scroll=0;return None
@@ -144,19 +144,25 @@ class Model:
             current=self.visible_scripts()
             if current:
                 if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%len(current)
-                elif key in ('OK','RIGHT'): self.page='confirm'
+                elif key in ('OK','RIGHT'):
+                    script=current[self.index]
+                    if script.get('page'):self.page=script['page'];self.scroll=0
+                    else:self.page='confirm'
         elif self.page=='confirm' and key in ('OK','RIGHT'):
             script=self.visible_scripts()[self.index]
-            if runner.start(script['id']):self.page='output';self.scroll=0
+            if script.get('page'):self.page=script['page'];self.scroll=0
+            elif runner.start(script['id']):self.page='output';self.scroll=0
             else:self.notice='Job busy or failed';self.page='output'
         elif self.page=='output':
             if key=='UP':self.scroll=min(140,self.scroll+1)
             elif key=='DOWN':self.scroll=max(0,self.scroll-1)
+        elif self.page=='radar':
+            if key=='OK': self._radar_scan()
         elif self.page=='qr':
             # Any key leaves the QR page.
             self._back()
         elif self.page=='settings':
-            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%8
+            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%7
             elif key in ('OK','RIGHT'):
                 if self.index==0:return 'rotate'
                 if self.index==1:self.asleep=True
@@ -171,8 +177,7 @@ class Model:
                     else:
                         self.notice='Job busy or failed';self.page='output'
                 if self.index==5:self.page='qr'
-                if self.index==6:self.page='radar'
-                if self.index==7:return 'theme'
+                if self.index==6:return 'theme'
         elif self.page in ('network','system') and key in ('UP','DOWN'):
             self.scroll=max(0,min(8,self.scroll+(1 if key=='DOWN' else -1)))
         return None
@@ -250,7 +255,7 @@ class Model:
             elif self.page=='settings':
                 rows=[f'Rotate screen / {rotation}°','Sleep screen',
                       'Test buttons','Test colors','Update from GitHub',
-                      'Dashboard QR','Wi-Fi radar',f'Theme / {self.theme}']
+                      'Dashboard QR',f'Theme / {self.theme}']
                 for i,line in enumerate(rows):
                     y=74+i*20
                     if self.index==i:d.rounded_rectangle((8,y,231,y+18),radius=4,fill=SELECT,outline=VIOLET,width=2)
@@ -299,6 +304,24 @@ class Model:
         d.ellipse((cx-r,cy-r,cx+r,cy+r),fill=VIOLET)
         d.ellipse((cx-r+16,cy-r-10,cx+r+16,cy+r-10),fill=BG)
         return img
+
+    def _radar_scan(self):
+        """Refresh the cached AP list off the UI thread so a slow
+        nmcli rescan never stalls a frame."""
+        if self._radar_scanning:
+            return
+        self._radar_scanning=True
+        def work():
+            try:
+                import wifi_tools
+                aps=wifi_tools.scan_networks() or []
+                with self._radar_lock:
+                    self._radar_aps=aps; self._radar_stamp=time.monotonic()
+            except Exception:
+                pass
+            finally:
+                self._radar_scanning=False
+        threading.Thread(target=work,daemon=True).start()
 
     def _radar(self,img,d,aps):
         t=time.monotonic(); cx,cy=110,95; mr=80

@@ -48,6 +48,13 @@
       "timeout": 35
     },
     {
+      "id": "wifi-radar",
+      "section": "wifi",
+      "name": "Wi-Fi radar",
+      "description": "Live radar sweep of nearby access points (panel page).",
+      "page": "radar"
+    },
+    {
       "id": "wifi-info",
       "section": "wifi",
       "name": "Wi-Fi link",

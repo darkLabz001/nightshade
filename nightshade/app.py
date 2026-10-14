@@ -275,6 +275,7 @@ def handler_for(app):
             if path=='/api/run':
                 ident=data.get('id')
                 if not isinstance(ident,str) or ident not in app.runner.scripts:return self.send(400,{'error':'Unknown script'})
+                if app.runner.scripts[ident].get('page'):return self.send(400,{'error':'Panel page only'})
                 with app.lock:
                     if app.runner.snapshot()['status'] in ('running','stopping'):return self.send(409,{'error':'A script is already running'})
                     # Run under the same lock as physical controls; no command text from the browser.

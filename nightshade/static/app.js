@@ -24,7 +24,7 @@ function drawScripts(scripts,sections){
  let n=0;
  groups.forEach(section=>{const items=scripts.filter(s=>(s.section||'general')===section.id);if(!items.length)return;
   const heading=document.createElement('h3');heading.className='section-heading';heading.textContent=section.name;host.append(heading);
-  items.forEach(script=>{n+=1;const card=document.createElement('article');card.className='script-card';const no=document.createElement('span');no.className='script-number';no.textContent=`RITUAL / ${String(n).padStart(2,'0')}`;const name=document.createElement('h3');name.textContent=script.name;const desc=document.createElement('p');desc.textContent=script.description;const button=document.createElement('button');button.textContent='Run ritual ↗';button.className='run-button';button.onclick=()=>{pending=script;$('run-name').textContent=script.name;$('run-description').textContent=script.description;$('run-dialog').showModal();};card.append(no,name,desc,button);host.append(card);});
+  items.forEach(script=>{if(script.page)return;n+=1;const card=document.createElement('article');card.className='script-card';const no=document.createElement('span');no.className='script-number';no.textContent=`RITUAL / ${String(n).padStart(2,'0')}`;const name=document.createElement('h3');name.textContent=script.name;const desc=document.createElement('p');desc.textContent=script.description;const button=document.createElement('button');button.textContent='Run ritual ↗';button.className='run-button';button.onclick=()=>{pending=script;$('run-name').textContent=script.name;$('run-description').textContent=script.description;$('run-dialog').showModal();};card.append(no,name,desc,button);host.append(card);});
  });
 }
 async function refresh(){

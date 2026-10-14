@@ -91,9 +91,16 @@ class Application:
             self.shutdown.wait(3)
 
     def _save_preferences(self):
+        # The handheld is usually powered off by pulling the plug, so
+        # flush before the rename for the same reason the log handler
+        # above fsyncs: a rotation or theme chosen just before a reboot
+        # must not stay in the page cache and vanish.
         prefs={'rotation':self.rotation,'theme':self.model.theme}
         tmp=self.state_dir/'preferences.tmp'
-        tmp.write_text(json.dumps(prefs))
+        with open(tmp,'w') as handle:
+            json.dump(prefs,handle)
+            try:handle.flush();os.fsync(handle.fileno())
+            except (OSError,ValueError,AttributeError):pass
         tmp.replace(self.state_dir/'preferences.json')
 
     def _job_sounds(self,job):

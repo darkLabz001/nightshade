@@ -1,5 +1,7 @@
 # Nightshade
 
+Source: [github.com/darkblightHQ/nightshade](https://github.com/darkblightHQ/nightshade)
+
 An independent handheld interface for your Raspberry Pi Zero 2 W, with an emo / gothic dark theme: ink black, dusty violet, crimson, crescent motifs and serif titles. Tested on the Waveshare 1.44-inch 128×128 ST7735S LCD HAT, with a configurable 1.3-inch 240×240 ST7789 profile.
 
 The panel is the primary control surface; a browser dashboard mirrors the LCD and adds a virtual joystick. Every tool runs on the device itself — the dashboard only sends button presses, never command text.

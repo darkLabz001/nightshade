@@ -297,15 +297,29 @@ class Model:
         return img
 
     def _radar(self,img,d,aps):
-        t=time.monotonic(); cx,cy=120,100; mr=90
+        t=time.monotonic(); cx,cy=110,95; mr=80
         d.ellipse((cx-mr,cy-mr,cx+mr,cy+mr),outline=MUTED)
         d.ellipse((cx-mr//2,cy-mr//2,cx+mr//2,cy+mr//2),outline=MUTED)
+        d.ellipse((cx-mr*3//4,cy-mr*3//4,cx+mr*3//4,cy+mr*3//4),outline=MUTED)
         d.line((cx-mr,cy,cx+mr,cy),fill=MUTED); d.line((cx,cy-mr,cx,cy+mr),fill=MUTED)
-        a=(t*2.0)%(2*math.pi); sx=cx+int(mr*math.cos(a)); sy=cy+int(mr*math.sin(a)); d.line((cx,cy,sx,sy),fill=VIOLET)
-        for ap in aps[:15]:
-            try: rssi=ap.get("rssi",-70)
-            except: rssi=-70
-            dist=(100+rssi)*mr//60; a2=a+(ap.get("channel",1)%11)*0.3; px=cx+int(dist*math.cos(a2)); py=cy+int(dist*math.sin(a2)); d.point((px,py),fill=BRIGHT)
+        a=(t*1.5)%(2*math.pi); sx=cx+int(mr*math.cos(a)); sy=cy+int(mr*math.sin(a)); d.line((cx,cy,sx,sy),fill=VIOLET,width=2)
+        for ap in aps[:12]:
+            try: sig=ap.get('signal',ap.get('rssi',-70))
+            except: sig=-70
+            rssi=sig if -100<=sig<=0 else -70
+            dist=max(6,min(mr,int((rssi+100)*mr//60)))
+            chan=ap.get('channel','1')
+            try: ch=int(chan)
+            except: ch=1
+            a2=(ch*0.35)+t*0.4
+            px=cx+int(dist*math.cos(a2)); py=cy+int(dist*math.sin(a2))
+            sz=max(1,min(3,(rssi+95)//15))
+            d.ellipse((px-sz,py-sz,px+sz,py+sz),fill=BRIGHT)
+        d.text((10,180),'RSSI  CHAN',font=font(9),fill=MUTED)
+        for i,ap in enumerate(aps[:5]):
+            try: sig=ap.get('signal',ap.get('rssi',-70))
+            except: sig=-70
+            d.text((10,192+i*10),f'{ap.get("essid","?")[:14]:14s} {sig:3d}  {ap.get("channel","?")}',font=font(9),fill=LINE)
         return img
 
     @staticmethod

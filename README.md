@@ -34,6 +34,7 @@ The installer builds the display bit-bang helper, enables SPI, installs the GPIO
 
 - `nightshade.service` — the app itself, running as the unprivileged `kali` user
 - `nightshade-firstboot.service` — refreshes `/home/kali/nightshade` from `/opt/nightshade` and starts the panel **before** anything that needs the network, then brings Tailscale up detached. This ordering is deliberate: waiting for network-online or cloud-init left the panel black for minutes on cold boots.
+- `nightshade-ota.service` — applies OTA updates as root, outside the app sandbox (see [OTA updates](#ota-updates))
 
 After the install (or a reboot), the dashboard is on the Tailscale address:
 

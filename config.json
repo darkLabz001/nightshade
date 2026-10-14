@@ -1,0 +1,590 @@
+{
+  "bind": "0.0.0.0",
+  "port": 8090,
+  "display": {
+    "type": "ST7735_128",
+    "rotation": 0,
+    "spi_speed": 8000000,
+    "self_test": false,
+    "pattern_test": true,
+    "hw_probe": false
+  },
+  "wifi": {
+    "adapter": "auto"
+  },
+  "sections": [
+    {
+      "id": "wifi",
+      "name": "Wi-Fi",
+      "description": "Hunt the air"
+    },
+    {
+      "id": "ble",
+      "name": "Bluetooth",
+      "description": "Whisper nearby"
+    },
+    {
+      "id": "network",
+      "name": "Network",
+      "description": "Follow the signal"
+    },
+    {
+      "id": "system",
+      "name": "System",
+      "description": "Vitals in the dark"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "wifi-scan",
+      "section": "wifi",
+      "name": "Wi-Fi scan",
+      "description": "List nearby access points, signal and security.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "scan"
+      ],
+      "timeout": 35
+    },
+    {
+      "id": "wifi-info",
+      "section": "wifi",
+      "name": "Wi-Fi link",
+      "description": "Show the current connection, channel and address.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "info"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "wifi-targets",
+      "section": "wifi",
+      "name": "Targets",
+      "description": "Scan and save the access point list, then pick a target.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "targets"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "wifi-target-prev",
+      "section": "wifi",
+      "name": "Target -",
+      "description": "Select the previous access point.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "target-prev"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "wifi-target-next",
+      "section": "wifi",
+      "name": "Target +",
+      "description": "Select the next access point.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "target-next"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "wifi-ap",
+      "section": "wifi",
+      "name": "Access point",
+      "description": "Show details of the selected access point.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "ap"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "wifi-monitor-on",
+      "section": "wifi",
+      "name": "Monitor on",
+      "description": "Enable monitor mode on the external adapter (auto-detected).",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "monitor-on"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "wifi-monitor-off",
+      "section": "wifi",
+      "name": "Monitor off",
+      "description": "Return the monitor interface to managed mode.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "monitor-off"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "wifi-deauth",
+      "section": "wifi",
+      "name": "Deauth",
+      "description": "Send deauth frames to the target. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "deauth"
+      ],
+      "timeout": 45
+    },
+    {
+      "id": "wifi-capture",
+      "section": "wifi",
+      "name": "Capture air",
+      "description": "Record access points and clients for 18 seconds.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "capture"
+      ],
+      "timeout": 45
+    },
+    {
+      "id": "wifi-handshake",
+      "section": "wifi",
+      "name": "Handshake",
+      "description": "Watch the target for 35s and report a captured handshake.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "handshake"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "wifi-crack",
+      "section": "wifi",
+      "name": "Crack handshake",
+      "description": "Crack the newest capture with rockyou. Slow on this CPU.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "crack"
+      ],
+      "timeout": 900
+    },
+    {
+      "id": "wifi-wps-scan",
+      "section": "wifi",
+      "name": "WPS scan",
+      "description": "List WPS-enabled access points. Needs monitor mode.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "wps-scan"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "wifi-wps-attack",
+      "section": "wifi",
+      "name": "WPS attack",
+      "description": "Bounded reaver run on the target. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "wps-attack"
+      ],
+      "timeout": 300
+    },
+    {
+      "id": "wifi-mac",
+      "section": "wifi",
+      "name": "Randomize MAC",
+      "description": "Randomize the external adapter's MAC address.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "mac-random"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "wifi-pixie",
+      "section": "wifi",
+      "name": "Pixie dust",
+      "description": "Offline WPS bypass on the target. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_tools.py",
+        "pixie-dust"
+      ],
+      "timeout": 300
+    },
+    {
+      "id": "ble-scan",
+      "section": "ble",
+      "name": "Bluetooth scan",
+      "description": "Discover nearby Bluetooth and BLE devices.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "scan"
+      ],
+      "timeout": 35
+    },
+    {
+      "id": "bt-classic",
+      "section": "ble",
+      "name": "Classic inquiry",
+      "description": "Find discoverable classic Bluetooth devices.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "classic"
+      ],
+      "timeout": 35
+    },
+    {
+      "id": "bt-info",
+      "section": "ble",
+      "name": "Adapter info",
+      "description": "Show the local Bluetooth controller details.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "info"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "bt-monitor",
+      "section": "ble",
+      "name": "HCI monitor",
+      "description": "Capture 8 seconds of Bluetooth controller traffic.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "bt-monitor"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "bt-devices",
+      "section": "ble",
+      "name": "Devices",
+      "description": "List paired and known Bluetooth devices.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "bt-devices"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "ble-gatt",
+      "section": "ble",
+      "name": "GATT reader",
+      "description": "Discover a BLE device and read its services.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "ble-gatt"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "bt-ping",
+      "section": "ble",
+      "name": "BT ping",
+      "description": "Ping a discovered Bluetooth device (l2ping).",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "bt-ping"
+      ],
+      "timeout": 30
+    },
+    {
+      "id": "bt-sdp",
+      "section": "ble",
+      "name": "SDP browse",
+      "description": "Browse services of a discovered Bluetooth device.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/bluetooth_tools.py",
+        "bt-sdp"
+      ],
+      "timeout": 35
+    },
+    {
+      "id": "gateway",
+      "section": "network",
+      "name": "Gateway pulse",
+      "description": "Send four pings to your default gateway.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/diagnostic.py",
+        "gateway"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "dns",
+      "section": "network",
+      "name": "DNS check",
+      "description": "Resolve example.com using the system resolver.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/diagnostic.py",
+        "dns"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "interfaces",
+      "section": "network",
+      "name": "Interfaces",
+      "description": "List interfaces and their IPv4 addresses.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "interfaces"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "arp",
+      "section": "network",
+      "name": "LAN sweep",
+      "description": "ARP-scan the local network for live hosts.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "arp"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "ports",
+      "section": "network",
+      "name": "Port scan",
+      "description": "SYN-scan the top 100 ports on the gateway.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "ports"
+      ],
+      "timeout": 90
+    },
+    {
+      "id": "capture-sniff",
+      "section": "network",
+      "name": "Packet sniff",
+      "description": "Capture 15s of traffic on wlan0 to a pcap file.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/capture_tools.py",
+        "sniff"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "capture-list",
+      "section": "network",
+      "name": "Saved captures",
+      "description": "List the capture files saved on the device.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/capture_tools.py",
+        "pcaps"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "capture-summary",
+      "section": "network",
+      "name": "Capture summary",
+      "description": "Summarise the most recent capture file.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/capture_tools.py",
+        "last"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "capture-analyse",
+      "section": "network",
+      "name": "Analyse capture",
+      "description": "Protocol and conversation breakdown of the newest capture.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/capture_tools.py",
+        "analyse"
+      ],
+      "timeout": 60
+    },
+    {
+      "id": "responder",
+      "section": "network",
+      "name": "Responder",
+      "description": "Poison LLMNR/NBT-NS/mDNS for 2 minutes. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "responder"
+      ],
+      "timeout": 150
+    },
+    {
+      "id": "sockets",
+      "section": "network",
+      "name": "Sockets & routes",
+      "description": "Listening and established sockets, routes, ARP cache.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "sockets"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "deep-scan",
+      "section": "network",
+      "name": "Deep scan",
+      "description": "All ports with service detection on the gateway.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "deep-scan"
+      ],
+      "timeout": 300
+    },
+    {
+      "id": "http-watch",
+      "section": "network",
+      "name": "HTTP watch",
+      "description": "Watch 15 seconds of HTTP request lines on the uplink.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/network_tools.py",
+        "http-watch"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "stream-follow",
+      "section": "network",
+      "name": "Stream follow",
+      "description": "Reassemble the first TCP stream in the newest capture.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/capture_tools.py",
+        "stream"
+      ],
+      "timeout": 45
+    },
+    {
+      "id": "tailscale",
+      "section": "network",
+      "name": "Tailscale status",
+      "description": "Read the current Tailscale connection state.",
+      "argv": [
+        "/usr/sbin/tailscale",
+        "status"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "health",
+      "section": "system",
+      "name": "Vital signs",
+      "description": "Read temperature, uptime, memory and storage.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/diagnostic.py",
+        "health"
+      ],
+      "timeout": 20
+    },
+    {
+      "id": "processes",
+      "section": "system",
+      "name": "Processes",
+      "description": "Show the processes using the most CPU.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "processes"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "storage",
+      "section": "system",
+      "name": "Storage",
+      "description": "Show disk usage for the mounted filesystems.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "storage"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "usb-list",
+      "section": "system",
+      "name": "USB devices",
+      "description": "List USB devices (confirms the Alfa adapter).",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "usb-list"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "rfkill",
+      "section": "system",
+      "name": "Radios",
+      "description": "Show radio kill switches.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "rfkill"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "nslog",
+      "section": "system",
+      "name": "App log",
+      "description": "Show recent Nightshade log lines.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "nslog"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "ota-update",
+      "section": "system",
+      "name": "OTA update",
+      "description": "Pull the latest Nightshade from GitHub and reinstall.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/ota_update.py",
+        "update"
+      ],
+      "timeout": 300
+    }
+  ]
+}

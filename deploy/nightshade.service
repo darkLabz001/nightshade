@@ -1,0 +1,48 @@
+[Unit]
+Description=Nightshade handheld interface
+# Bring the panel up first, then bind the web interface opportunistically.
+# Do not gate the display on the network: the LCD must work off-grid.
+Wants=tailscaled.service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=kali
+Group=kali
+SupplementaryGroups=gpio spi
+WorkingDirectory=/home/kali/.local/state/nightshade
+# Wait for the SPI device, then make sure /dev/gpiomem, /dev/gpiochip0 and
+# /dev/spidev0.0 are group-accessible (on this image the raspberrypi-gpiomem
+# driver registers the new "rpi-gpiomem" udev subsystem, which the stock rules
+# do not cover; /dev/gpiochip0 is what lgpio opens for the buttons).
+ExecStartPre=+/bin/sh -c 'i=0; while [ ! -e /dev/spidev0.0 ] && [ $i -lt 100 ]; do i=$((i+1)); sleep 0.2; done; [ -e /dev/gpiomem ] && chown root:gpio /dev/gpiomem && chmod 0660 /dev/gpiomem; [ -e /dev/gpiochip0 ] && chown root:gpio /dev/gpiochip0 && chmod 0660 /dev/gpiochip0; [ -e /dev/spidev0.0 ] && chown root:spi /dev/spidev0.0 && chmod 0660 /dev/spidev0.0; true'
+# Wait for the account before dropping privileges.
+ExecStartPre=/bin/sh -c 'i=0; while ! id kali >/dev/null 2>&1 && [ $i -lt 120 ]; do i=$((i+1)); sleep 1; done'
+ExecStart=/usr/bin/python3 -m nightshade.app
+# Capture stdout/stderr (including import errors) next to the app log.
+StandardOutput=append:/home/kali/.local/state/nightshade/console.log
+StandardError=append:/home/kali/.local/state/nightshade/console.log
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=8
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/kali/nightshade
+# NoNewPrivileges is intentionally NOT set: the Wi-Fi/Bluetooth/network tools
+# elevate with the passwordless sudo already configured for the kali account
+# (sudo -n) for the handful of commands that need CAP_NET_RAW / CAP_NET_ADMIN
+# (airmon-ng, airodump-ng, arp-scan, nmap -sS, hcitool). Keeping the service
+# unprivileged otherwise means a compromised script still cannot touch the
+# read-only system or home trees below.
+ProtectSystem=strict
+ProtectHome=read-only
+# The state directory is the app's own; /usr/share/responder is
+# the one extra write the tools need (responder hardcodes its log
+# and SQLite database paths to its package directory -- see
+# network_tools.py responder()).
+ReadWritePaths=/home/kali/.local/state/nightshade /usr/share/responder
+PrivateTmp=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

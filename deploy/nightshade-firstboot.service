@@ -1,0 +1,21 @@
+[Unit]
+Description=Nightshade Kali first-boot provisioning
+# Do NOT order this after network-online.target or cloud-init.target. Those can
+# each take minutes on a cold, offline boot and the panel needs no network at
+# all, so waiting for them turned every boot into a long black screen. The
+# script itself waits (briefly) for the provisioning account and brings
+# Tailscale up detached.
+After=local-fs.target
+ConditionPathExists=/opt/nightshade
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nightshade-firstboot.sh
+RemainAfterExit=yes
+TimeoutStartSec=0
+# Keep the detached Tailscale bring-up alive for as long as the unit is up.
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

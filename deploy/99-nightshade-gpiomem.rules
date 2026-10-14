@@ -1,0 +1,17 @@
+# Nightshade GPIO access.
+#
+# The Raspberry Pi kernel's raspberrypi-gpiomem driver (module
+# raspberrypi-gpiomem) registers /dev/gpiomem under the *new* "rpi-gpiomem"
+# udev subsystem. The stock 99-com.rules only matches the legacy
+# "bcm2835-gpiomem" subsystem, so /dev/gpiomem is left root:root 0600 and the
+# "gpio" group cannot open it. RPi.GPIO then falls back to /dev/mem, which is
+# root-only, and fails with "No access to /dev/mem.  Try running as root!",
+# leaving the ST7789 panel uninitialised (white screen).
+SUBSYSTEM=="rpi-gpiomem", GROUP="gpio", MODE="0660"
+SUBSYSTEM=="bcm2835-gpiomem", GROUP="gpio", MODE="0660"
+KERNEL=="gpiomem", GROUP="gpio", MODE="0660"
+SUBSYSTEM=="spidev", GROUP="spi", MODE="0660"
+# lgpio (the buttons' backend) opens /dev/gpiochip0 directly. Stock
+# 99-com.rules already sets this, but repeat it here so the access mode does
+# not depend on an OS-provided rule staying put.
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"

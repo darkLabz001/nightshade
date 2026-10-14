@@ -48,17 +48,6 @@
       "timeout": 35
     },
     {
-      "id": "wifi-radar",
-      "section": "wifi",
-      "name": "Wi-Fi radar",
-      "description": "Live Wi-Fi radar sweep showing nearby APs.",
-      "argv": [
-        "/usr/bin/python3",
-        "scripts/wifi_radar.py"
-      ],
-      "timeout": 0
-    },
-    {
       "id": "wifi-info",
       "section": "wifi",
       "name": "Wi-Fi link",

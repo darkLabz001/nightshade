@@ -1,5 +1,6 @@
 import time
 import math
+import threading
 from datetime import datetime
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
@@ -71,6 +72,8 @@ class Model:
         self.theme=theme if theme in PALETTES else 'Violet'
         apply_palette(self.theme)
         self.last_input=time.monotonic()
+        self._radar_aps=[]; self._radar_stamp=0.0; self._radar_scanning=False
+        self._radar_lock=threading.Lock()
         self.sections=self._build_sections(sections)
         self.by_section={section['id']:[] for section in self.sections}
         for script in self.scripts:
@@ -122,6 +125,8 @@ class Model:
     def key(self,key,runner):
         self.last_key=key
         self.last_input=time.monotonic()
+        self._radar_aps=[]; self._radar_stamp=0.0; self._radar_scanning=False
+        self._radar_lock=threading.Lock()
         if self.asleep: self.asleep=False; return None
         if key=='KEY3': runner.stop(); self.notice='Stop requested'; return None
         if key=='KEY2': self.page='home';self.index=0;self.section_index=0;self.scroll=0;return None
@@ -267,11 +272,10 @@ class Model:
                 d.text((14,208),'PRESS ANY KEY / RETURN TO MENU',font=font(10,True),fill=RED)
             elif self.page=='radar':
                 d.text((14,20),'WIFI RADAR',font=font(15,True),fill=VIOLET)
-                try:
-                    import wifi_tools
-                    aps = wifi_tools.scan_wifi() or []
-                except Exception:
-                    aps = []
+                with self._radar_lock:
+                    aps=list(self._radar_aps)
+                if time.monotonic()-self._radar_stamp>4.0:
+                    self._radar_scan()
                 self._radar(img,d,aps)
                 d.text((12,226),'1 BACK   2 HOME   3 STOP',font=font(11),fill=MUTED)
                 d.ellipse((222,226,232,236),fill=VIOLET if hardware else RED)

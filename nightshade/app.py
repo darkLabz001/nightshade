@@ -103,6 +103,18 @@ class Application:
             except (OSError,ValueError,AttributeError):pass
         tmp.replace(self.state_dir/'preferences.json')
 
+    def _save_access_key(self,new_key):
+        # Atomic replace with an fsync first: the Pi Zero is often
+        # power-cycled by pulling the plug, so a key change must not
+        # sit only in the page cache.
+        tmp=self.state_dir/'access-key.tmp'
+        with open(tmp,'w') as handle:
+            handle.write(new_key)
+            try:handle.flush();os.fsync(handle.fileno())
+            except (OSError,ValueError,AttributeError):pass
+        os.chmod(tmp,0o600)
+        tmp.replace(self.state_dir/'access-key')
+
     def _job_sounds(self,job):
         """Chime when a job ends; alert on a captured handshake."""
         running=job['status']=='running'
@@ -245,6 +257,16 @@ def handler_for(app):
                     with app.lock:app.sessions.pop(c['nightshade'].value,None)
                 except KeyError:pass
                 return self.send(200,{'ok':True},cookie='nightshade=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+            if path=='/api/access':
+                new_key=data.get('key')
+                if (not isinstance(new_key,str) or not 4<=len(new_key)<=64
+                        or not new_key.isprintable() or new_key.strip()!=new_key):
+                    return self.send(400,{'error':'Key must be 4-64 printable characters'})
+                with app.lock:
+                    try:app._save_access_key(new_key)
+                    except OSError:return self.send(500,{'error':'Could not write key'})
+                    app.access_key=new_key
+                return self.send(200,{'ok':True})
             if path=='/api/key':
                 key=data.get('key')
                 if not isinstance(key,str) or key not in PINS:return self.send(400,{'error':'Unknown button'})

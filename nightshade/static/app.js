@@ -12,6 +12,7 @@ function message(text){$('message').textContent=text;}
 async function press(key){try{await api('/api/key',{key});await refresh();}catch(e){message(e.message);}}
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/login',{key:$('access-key').value.trim()});$('access-key').value='';$('login-error').textContent='';unlock();await refresh();}catch(err){$('login-error').textContent=err.message;}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/logout',{});}finally{lock();}});
+$('access-form').addEventListener('submit',async e=>{e.preventDefault();const key=$('new-key').value.trim();if(key.length<4){$('access-error').textContent='Too short (min 4).';return;}try{await api('/api/access',{key});$('access-error').textContent='';message('Access key updated.');$('new-key').value='';}catch(err){$('access-error').textContent=err.message;}});
 document.querySelectorAll('[data-key]').forEach(b=>b.addEventListener('click',()=>press(b.dataset.key)));
 document.addEventListener('keydown',e=>{if(!unlocked||$('run-dialog').open||['INPUT','TEXTAREA'].includes(e.target.tagName)||e.repeat)return;const keys={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',Enter:'OK',Escape:'KEY1','1':'KEY1','2':'KEY2','3':'KEY3'};if(keys[e.key]){e.preventDefault();press(keys[e.key]);}});
 $('cancel-run').onclick=()=>$('run-dialog').close();

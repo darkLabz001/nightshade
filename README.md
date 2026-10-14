@@ -40,7 +40,7 @@ The installer builds the display bit-bang helper, enables SPI, installs the GPIO
 After the install (or a reboot), the dashboard is on the Tailscale address:
 
 ```
-http://100.81.232.19:8090
+./ or http://<device-ip>:8090
 ```
 
 Sign in with the access key generated on first run — it never appears in URLs and is stored only on the device:

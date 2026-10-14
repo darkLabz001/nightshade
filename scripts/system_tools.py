@@ -73,16 +73,20 @@ def update_check():
     if not (repo / '.git').exists():
         print('Not a git clone -- no OTA on this device')
         return
-    # ls-remote only reads the repository and writes nothing,
-    # so it is safe inside the service sandbox.
-    rc, out = run(['git', '-C', str(repo), 'ls-remote',
-                   'origin', '-h', 'refs/heads/main'], 25)
-    remote = ''
-    if rc == 0 and out.strip():
-        remote = out.strip().split()[0]
-    rc, out = run(['git', '-C', str(repo), 'rev-parse', 'HEAD'], 10)
+    # /opt is root-owned, and git refuses to read a repository it does
+    # not own ("dubious ownership") unless the directory is trusted for
+    # this one call -- which writes nothing.
+    trust = f'safe.directory={repo}'
+    rc, out = run(['git', '-c', trust, '-C', str(repo), 'rev-parse', 'HEAD'], 10)
     local = out.strip() if rc == 0 else ''
     print(f'Installed : {local[:12] or "unknown"}')
+    # ls-remote only reads the repository and writes nothing, so it is
+    # safe inside the service sandbox; a non-interactive run fails fast
+    # rather than waiting on a username prompt.
+    rc, out = run(['env', 'GIT_TERMINAL_PROMPT=0', 'git', '-c', trust,
+                   '-C', str(repo), 'ls-remote', 'origin',
+                   '-h', 'refs/heads/main'], 25)
+    remote = out.strip().split()[0] if rc == 0 and out.strip() else ''
     if not remote:
         print('Could not reach GitHub'); return
     print(f'Available : {remote[:12]}')

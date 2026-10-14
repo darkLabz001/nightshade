@@ -144,6 +144,54 @@ def scan_networks():
     return sorted(nets.values(), key=lambda net: net['signal'], reverse=True)
 
 
+def radar_networks():
+    """Access points seen by the external adapter alone.
+
+    The radar sweeps only the external adapter with a plain
+    ``iw scan``: the uplink is never disturbed, and the result
+    carries real dBm signal values for plotting. While an
+    interface sits in monitor mode a scan is impossible, so the
+    sweep reports nothing and the last plot holds.
+    """
+    interface = wifi_adapter()
+    if interface == uplink_interface():
+        # No external adapter present: never sweep the uplink.
+        return []
+    if monitor_interface():
+        return []
+    rc, out = run(['sudo', '-n', 'iw', 'dev', interface, 'scan'], 20)
+    if rc != 0:
+        return []
+    aps = {}
+    bssid = None
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith('BSS '):
+            bssid = line[4:21]
+            if not MAC.match(bssid):
+                bssid = None
+                continue
+            aps.setdefault(bssid.upper(),
+                           {'bssid': bssid.upper(), 'essid': '(hidden)',
+                            'channel': '?', 'signal': -100, 'security': 'open'})
+        elif bssid and ':' in line:
+            ap = aps[bssid.upper()]
+            if line.startswith('signal:'):
+                try:
+                    ap['signal'] = int(float(line.split(':', 1)[1].split('dBm')[0]))
+                except ValueError:
+                    pass
+            elif line.startswith('SSID:'):
+                ap['essid'] = line.split(':', 1)[1].strip() or '(hidden)'
+            elif line.startswith('DS Parameter set:'):
+                ap['channel'] = line.split('channel', 1)[1].strip() or '?'
+            elif line.startswith('RSN:'):
+                ap['security'] = 'WPA2'
+            elif line.startswith('WPA:'):
+                ap['security'] = 'WPA'
+    return sorted(aps.values(), key=lambda net: net['signal'], reverse=True)
+
+
 def load_targets():
     try:
         return json.loads(TARGETS.read_text())

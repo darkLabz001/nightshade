@@ -307,14 +307,20 @@ class Model:
 
     def _radar_scan(self):
         """Refresh the cached AP list off the UI thread so a slow
-        nmcli rescan never stalls a frame."""
+        sweep never stalls a frame. The scripts tree is not on the
+        service's PYTHONPATH, so it is added here."""
         if self._radar_scanning:
             return
         self._radar_scanning=True
         def work():
             try:
+                import sys
+                from pathlib import Path
+                scripts=Path(__file__).resolve().parent.parent/'scripts'
+                if str(scripts) not in sys.path:
+                    sys.path.insert(0,str(scripts))
                 import wifi_tools
-                aps=wifi_tools.scan_networks() or []
+                aps=wifi_tools.radar_networks() or []
                 with self._radar_lock:
                     self._radar_aps=aps; self._radar_stamp=time.monotonic()
             except Exception:
@@ -334,7 +340,8 @@ class Model:
             try: sig=ap.get('signal',ap.get('rssi',-70))
             except: sig=-70
             rssi=sig if -100<=sig<=0 else -70
-            dist=max(6,min(mr,int((rssi+100)*mr//60)))
+            # Stronger signal plots nearer the centre of the sweep.
+            dist=max(4,min(mr,int((-rssi)*mr//100)))
             chan=ap.get('channel','1')
             try: ch=int(chan)
             except: ch=1

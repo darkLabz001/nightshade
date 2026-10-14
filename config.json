@@ -228,6 +228,28 @@
       "timeout": 300
     },
     {
+      "id": "wifi-watch",
+      "section": "wifi",
+      "name": "Handshake hunt",
+      "description": "Deauth and capture in a loop until a handshake lands. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/wifi_watch.py"
+      ],
+      "timeout": 510
+    },
+    {
+      "id": "rogue-ap",
+      "section": "wifi",
+      "name": "Rogue AP",
+      "description": "Twin the target with a captive portal. Authorised testing only.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/rogue_ap.py"
+      ],
+      "timeout": 330
+    },
+    {
       "id": "ble-scan",
       "section": "ble",
       "name": "Bluetooth scan",
@@ -575,6 +597,18 @@
       "timeout": 15
     },
     {
+      "id": "update-check",
+      "section": "system",
+      "name": "Update check",
+      "description": "Compare the installed revision with GitHub.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "update-check"
+      ],
+      "timeout": 40
+    },
+    {
       "id": "ota-update",
       "section": "system",
       "name": "OTA update",
@@ -585,6 +619,30 @@
         "update"
       ],
       "timeout": 300
+    },
+    {
+      "id": "reboot",
+      "section": "system",
+      "name": "Reboot",
+      "description": "Restart the handheld now.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "reboot"
+      ],
+      "timeout": 30
+    },
+    {
+      "id": "shutdown",
+      "section": "system",
+      "name": "Shut down",
+      "description": "Power the handheld off.",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/system_tools.py",
+        "shutdown"
+      ],
+      "timeout": 30
     }
   ]
 }

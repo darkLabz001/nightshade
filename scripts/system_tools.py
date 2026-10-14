@@ -2,6 +2,7 @@
 """System section: quick one-shot views of what the Pi is doing."""
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -66,6 +67,46 @@ def applog():
         print(line)
 
 
+def update_check():
+    print('NIGHTSHADE / UPDATE CHECK\n')
+    repo = Path('/opt/nightshade')
+    if not (repo / '.git').exists():
+        print('Not a git clone -- no OTA on this device')
+        return
+    # ls-remote only reads the repository and writes nothing,
+    # so it is safe inside the service sandbox.
+    rc, out = run(['git', '-C', str(repo), 'ls-remote',
+                   'origin', '-h', 'refs/heads/main'], 25)
+    remote = ''
+    if rc == 0 and out.strip():
+        remote = out.strip().split()[0]
+    rc, out = run(['git', '-C', str(repo), 'rev-parse', 'HEAD'], 10)
+    local = out.strip() if rc == 0 else ''
+    print(f'Installed : {local[:12] or "unknown"}')
+    if not remote:
+        print('Could not reach GitHub'); return
+    print(f'Available : {remote[:12]}')
+    if local == remote:
+        print('\nUp to date')
+    else:
+        print('\nUpdate waiting -- Settings -> Update from GitHub')
+
+
+def power(action):
+    label = 'Reboot' if action == 'reboot' else 'Shut down'
+    print(f'NIGHTSHADE / {label.upper()}\n')
+    if action == 'reboot':
+        print('Rebooting in 5 seconds -- the panel will go dark,')
+        print('SSH and the dashboard come back on their own.')
+    else:
+        print('Shutting down in 5 seconds -- the panel will go dark.')
+        print('Unplug and replug power to start again.')
+    time.sleep(5)
+    rc, out = run(['sudo', '-n', 'systemctl', action], 30)
+    if rc != 0:
+        print(out.strip() or f'{action} failed')
+
+
 mode = sys.argv[1] if len(sys.argv) > 1 else ''
 if mode == 'processes':
     processes()
@@ -77,5 +118,11 @@ elif mode == 'rfkill':
     radios()
 elif mode == 'nslog':
     applog()
+elif mode == 'update-check':
+    update_check()
+elif mode == 'reboot':
+    power('reboot')
+elif mode == 'shutdown':
+    power('shutdown')
 else:
     sys.exit('Unknown system tool')

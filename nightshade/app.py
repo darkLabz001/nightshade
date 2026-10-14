@@ -15,10 +15,11 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+from . import buzzer
 from .hardware import Hat, PINS
 from .runner import Runner
 from .stats import Stats
-from .ui import Model
+from .ui import Model, PALETTES, apply_palette
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG = logging.getLogger('nightshade')
@@ -50,13 +51,16 @@ class Application:
             with os.fdopen(fd,'w') as f:f.write(secrets.token_urlsafe(24))
         self.access_key=key_path.read_text().strip()
         self.events=queue.Queue(maxsize=128);self.lock=threading.RLock();self.shutdown=threading.Event()
-        self.runner=Runner(config['scripts'],ROOT);self.model=Model(config['scripts'],config.get('sections'))
-        self.stats={};self.png=b'';self.hat=None;self.hardware_error='Simulation' if simulate else 'Initializing'
         self.rotation=config['display'].get('rotation',0)
+        theme=None
         try:
             saved=json.loads((self.state_dir/'preferences.json').read_text())
             if saved.get('rotation') in (0,90,180,270):self.rotation=saved['rotation']
+            theme=saved.get('theme')
         except (OSError,ValueError):pass
+        self.runner=Runner(config['scripts'],ROOT)
+        self.model=Model(config['scripts'],config.get('sections'),theme=theme)
+        self.stats={};self.png=b'';self.hat=None;self.hardware_error='Simulation' if simulate else 'Initializing'
         if not simulate:
             try:
                 self.hat=Hat({**config['display'],'rotation':self.rotation},self.emit)
@@ -73,7 +77,7 @@ class Application:
         with self.lock:
             return {'page':self.model.page,'selected':self.model.index,'last_key':self.model.last_key,
                 'hardware':bool(self.hat),'hardware_error':self.hardware_error,
-                'rotation':self.rotation,'display':self.config['display']['type'],'stats':dict(self.stats),
+                'rotation':self.rotation,'theme':self.model.theme,'display':self.config['display']['type'],'stats':dict(self.stats),
                 'job':self.runner.snapshot(),'scripts':[{k:s.get(k,'') for k in ('id','name','description','section')} for s in self.config['scripts']],
                 'sections':[{'id':s['id'],'name':s['name'],'description':s.get('description','')} for s in self.model.sections]}
 
@@ -86,8 +90,27 @@ class Application:
             except Exception:LOG.exception('Stats sample failed')
             self.shutdown.wait(3)
 
+    def _save_preferences(self):
+        prefs={'rotation':self.rotation,'theme':self.model.theme}
+        tmp=self.state_dir/'preferences.tmp'
+        tmp.write_text(json.dumps(prefs))
+        tmp.replace(self.state_dir/'preferences.json')
+
+    def _job_sounds(self,job):
+        """Chime when a job ends; alert on a captured handshake."""
+        running=job['status']=='running'
+        if self._job_running and not running:
+            buzzer.chime()
+        if len(job['lines'])>self._job_lines:
+            for line in job['lines'][self._job_lines:]:
+                if 'handshake captured' in line.lower():
+                    buzzer.alert()
+                    break
+        self._job_running=running;self._job_lines=len(job['lines'])
+
     def loop(self):
         last_frame=None;last_render=0
+        self._job_running=False;self._job_lines=0
         while not self.shutdown.is_set():
             changed=False
             try:
@@ -96,17 +119,24 @@ class Application:
                     if kind=='run':
                         if self.runner.start(value):self.model.page='output';self.model.scroll=0
                     else:
+                        buzzer.click()
                         action=self.model.key(value,self.runner)
                         if action=='rotate':
                             self.rotation=(self.rotation+90)%360
                             if self.hat:self.hat.rotation=self.rotation
-                            tmp=self.state_dir/'preferences.tmp';tmp.write_text(json.dumps({'rotation':self.rotation}))
-                            tmp.replace(self.state_dir/'preferences.json');last_frame=None
+                            self._save_preferences();last_frame=None
+                        elif action=='theme':
+                            names=list(PALETTES)
+                            self.model.theme=names[(names.index(self.model.theme)+1)%len(names)]
+                            apply_palette(self.model.theme)
+                            self._save_preferences();last_frame=None
                 changed=True
             except queue.Empty:pass
             if changed or time.monotonic()-last_render>=.5:
                 with self.lock:
-                    image=self.model.render(self.stats,self.runner.snapshot(),bool(self.hat),self.rotation)
+                    job=self.runner.snapshot()
+                    image=self.model.render(self.stats,job,bool(self.hat),self.rotation)
+                self._job_sounds(job)
                 frame=image.tobytes()
                 if frame!=last_frame:
                     buf=io.BytesIO();image.save(buf,format='PNG')

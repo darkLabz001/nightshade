@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
@@ -7,7 +8,30 @@ from PIL import Image, ImageDraw, ImageFont
 # panel reads as an almost blank black screen with a couple of faint lines.
 # These values keep the dark theme but push every element well clear of black.
 BG = '#000000'; PANEL = '#1b1230'; LINE = '#a98cc2'; MUTED = '#cdbcdd'
-WHITE = '#ffffff'; VIOLET = '#cfa8ff'; RED = '#ff6b8a'
+WHITE = '#ffffff'; VIOLET = '#cfa8ff'; RED = '#ff6b8a'; SELECT = '#2a1840'
+# Swappable themes. The Model rebinds the module-level palette globals
+# when a theme is picked: render() and its helpers all read the same
+# globals, so one update re-themes every page at once. WHITE stays
+# white in every palette because clipped() binds it as a default
+# argument at definition time.
+PALETTES = {
+    'Violet': ('#000000', '#1b1230', '#a98cc2', '#cdbcdd',
+               '#ffffff', '#cfa8ff', '#ff6b8a', '#2a1840'),
+    'Acid':   ('#020602', '#0f1f12', '#6fae7f', '#bfe3c6',
+               '#ffffff', '#7dff9a', '#d6ff4d', '#122a16'),
+    'Amber':  ('#060400', '#241708', '#c98f4e', '#e8cf9f',
+               '#ffffff', '#ffb347', '#ff6b3d', '#2a1c0a'),
+    'Ice':    ('#020507', '#10202a', '#7fb8cc', '#d3ecf2',
+               '#ffffff', '#7dd7ff', '#ff8a8a', '#122831'),
+}
+_PALETTE_KEYS = ('BG', 'PANEL', 'LINE', 'MUTED', 'WHITE',
+                 'VIOLET', 'RED', 'SELECT')
+
+
+def apply_palette(name):
+    """Rebind the palette globals to a named theme."""
+    colors = PALETTES.get(name, PALETTES['Violet'])
+    globals().update(dict(zip(_PALETTE_KEYS, colors)))
 MENU = [('System', 'Vitals in the dark'), ('Network', 'Follow the signal'),
         ('Scripts', 'Choose your ritual'), ('Settings', 'Make it yours')]
 # Friendly titles for sections that config.json leaves implicit (a script with
@@ -40,9 +64,12 @@ def sigil(d,x,y,size=22):
 
 
 class Model:
-    def __init__(self,scripts,sections=None):
+    def __init__(self,scripts,sections=None,theme=None):
         self.scripts=list(scripts); self.page='home'; self.index=0; self.scroll=0
         self.last_key='—'; self.notice=''; self.asleep=False; self.section_index=0
+        self.theme=theme if theme in PALETTES else 'Violet'
+        apply_palette(self.theme)
+        self.last_input=time.monotonic()
         self.sections=self._build_sections(sections)
         self.by_section={section['id']:[] for section in self.sections}
         for script in self.scripts:
@@ -86,13 +113,14 @@ class Model:
             self.page='scripts'
         elif self.page=='settings':
             self.page='home';self.index=3
-        elif self.page in ('controls','colors'):
+        elif self.page in ('controls','colors','qr'):
             self.page='settings'
         else:
             self.page='home'
 
     def key(self,key,runner):
         self.last_key=key
+        self.last_input=time.monotonic()
         if self.asleep: self.asleep=False; return None
         if key=='KEY3': runner.stop(); self.notice='Stop requested'; return None
         if key=='KEY2': self.page='home';self.index=0;self.section_index=0;self.scroll=0;return None
@@ -118,8 +146,11 @@ class Model:
         elif self.page=='output':
             if key=='UP':self.scroll=min(140,self.scroll+1)
             elif key=='DOWN':self.scroll=max(0,self.scroll-1)
+        elif self.page=='qr':
+            # Any key leaves the QR page.
+            self._back()
         elif self.page=='settings':
-            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%5
+            if key in ('UP','DOWN'): self.index=(self.index+(1 if key=='DOWN' else -1))%7
             elif key in ('OK','RIGHT'):
                 if self.index==0:return 'rotate'
                 if self.index==1:self.asleep=True
@@ -133,6 +164,8 @@ class Model:
                         self.page='output';self.scroll=0
                     else:
                         self.notice='Job busy or failed';self.page='output'
+                if self.index==5:self.page='qr'
+                if self.index==6:return 'theme'
         elif self.page in ('network','system') and key in ('UP','DOWN'):
             self.scroll=max(0,min(8,self.scroll+(1 if key=='DOWN' else -1)))
         return None
@@ -141,6 +174,11 @@ class Model:
     def render(self,stats,job,hardware,rotation):
         img=Image.new('RGB',(240,240),BG);d=ImageDraw.Draw(img)
         if self.asleep:return img
+        if (self.page not in ('output','qr')
+                and time.monotonic()-self.last_input>60):
+            # A minute with no input: crescent and stars
+            # until the next key wakes the normal UI.
+            return self._saver(img,d)
         d.rectangle((0,0,239,5),fill=VIOLET)
         d.text((12,10),'N / S',font=font(13,True),fill=VIOLET)
         d.text((228,10),datetime.now().strftime('%H:%M'),font=font(13),fill=MUTED,anchor='ra')
@@ -152,7 +190,7 @@ class Model:
             for i,(title,subtitle) in enumerate(MENU):
                 y=92+i*30;active=i==self.index
                 if active:
-                    d.rounded_rectangle((8,y,231,y+28),radius=5,fill='#2a1840',outline=VIOLET,width=2)
+                    d.rounded_rectangle((8,y,231,y+28),radius=5,fill=SELECT,outline=VIOLET,width=2)
                     d.rectangle((10,y+5,13,y+23),fill=RED)
                 d.text((20,y+7),f'0{i+1}',font=font(12,True),fill=RED if active else MUTED)
                 d.text((48,y+4),title,font=font(17,active),fill=WHITE if active else MUTED)
@@ -176,7 +214,7 @@ class Model:
                 start=max(0,self.section_index-3)
                 for n,section in enumerate(self.sections[start:start+4],start):
                     y=78+(n-start)*34
-                    if n==self.section_index:d.rounded_rectangle((8,y,231,y+31),radius=5,fill='#2a1840',outline=VIOLET,width=2)
+                    if n==self.section_index:d.rounded_rectangle((8,y,231,y+31),radius=5,fill=SELECT,outline=VIOLET,width=2)
                     clipped(d,(18,y+7),section['name'],168,16,WHITE if n==self.section_index else MUTED)
                     count=len(self.by_section.get(section['id'],[]))
                     d.text((224,y+8),str(count),font=font(13,True),fill=VIOLET,anchor='ra')
@@ -184,7 +222,7 @@ class Model:
                 current=self.visible_scripts();start=max(0,self.index-3)
                 for n,script in enumerate(current[start:start+4],start):
                     y=78+(n-start)*34
-                    if n==self.index:d.rounded_rectangle((8,y,231,y+31),radius=5,fill='#2a1840',outline=VIOLET,width=2)
+                    if n==self.index:d.rounded_rectangle((8,y,231,y+31),radius=5,fill=SELECT,outline=VIOLET,width=2)
                     clipped(d,(18,y+7),script['name'],204,15,WHITE if n==self.index else MUTED)
                 if not current:clipped(d,(14,90),'No tools here',210)
             elif self.page=='confirm':
@@ -204,11 +242,12 @@ class Model:
                 if not lines:d.text((14,104),'Waiting for output…',font=font(13),fill=MUTED)
             elif self.page=='settings':
                 rows=[f'Rotate screen / {rotation}°','Sleep screen',
-                      'Test buttons','Test colors','Update from GitHub']
+                      'Test buttons','Test colors','Update from GitHub',
+                      'Dashboard QR',f'Theme / {self.theme}']
                 for i,line in enumerate(rows):
-                    y=78+i*28
-                    if self.index==i:d.rounded_rectangle((8,y,231,y+26),radius=5,fill='#2a1840',outline=VIOLET,width=2)
-                    clipped(d,(18,y+6),line,204,15)
+                    y=74+i*20
+                    if self.index==i:d.rounded_rectangle((8,y,231,y+18),radius=4,fill=SELECT,outline=VIOLET,width=2)
+                    clipped(d,(18,y+4),line,204,13)
             elif self.page=='controls':
                 d.text((14,84),'LAST INPUT',font=font(11),fill=MUTED)
                 d.text((14,104),self.last_key,font=font(30,True),fill=VIOLET)
@@ -224,10 +263,61 @@ class Model:
                     d.rounded_rectangle((x,y,x+52,y+20),radius=3,fill=color,outline='#ffffff')
                     clipped(d,(x+58,y+4),label,49,10,MUTED)
                 d.text((14,208),'PRESS ANY KEY / RETURN TO MENU',font=font(10,True),fill=RED)
+            elif self.page=='qr':
+                self._qr(d,stats)
         d.line((12,220,228,220),fill=LINE,width=2)
         d.text((12,226),'1 BACK   2 HOME   3 STOP',font=font(11),fill=MUTED)
         d.ellipse((222,226,232,236),fill=VIOLET if hardware else RED)
         return img
+
+    def _saver(self,img,d):
+        """Idle animation: a crescent moon with drifting stars."""
+        t=time.monotonic()
+        for i in range(26):
+            x=(i*89+23)%236
+            y=(i*67+int(t*(2+i%4)))%236
+            d.point((x,y),fill=LINE if i%2 else MUTED)
+        cx,cy,r=120,102,34
+        d.ellipse((cx-r,cy-r,cx+r,cy+r),fill=VIOLET)
+        d.ellipse((cx-r+16,cy-r-10,cx+r+16,cy+r-10),fill=BG)
+        return img
+
+    @staticmethod
+    def _dashboard_url(stats):
+        ip=stats.get('tail_ip') or ''
+        if not ip:
+            for addr in stats.get('addresses',[]):
+                candidate=addr.get('ip','')
+                if candidate and not candidate.startswith(('127.','169.254')):
+                    ip=candidate;break
+        return f'http://{ip}:8090' if ip else ''
+
+    def _qr(self,d,stats):
+        d.text((14,74),'DASHBOARD',font=font(15,True),fill=VIOLET)
+        url=self._dashboard_url(stats)
+        if not url:
+            d.text((14,120),'No address yet',font=font(13),fill=MUTED)
+            return
+        try:
+            import qrcode
+            code=qrcode.QRCode(border=1)
+            code.add_data(url)
+            code.make(fit=True)
+            matrix=code.get_matrix()
+        except Exception:
+            d.text((14,120),'QR unavailable',font=font(13),fill=MUTED)
+            return
+        n=len(matrix)
+        scale=max(1,min(10,130//n))
+        size=n*scale
+        x0=(240-size)//2;y0=92
+        for r,row in enumerate(matrix):
+            for c,cell in enumerate(row):
+                if cell:
+                    d.rectangle((x0+c*scale,y0+r*scale,
+                                 x0+(c+1)*scale-1,y0+(r+1)*scale-1),
+                                fill=VIOLET)
+        clipped(d,(14,min(212,y0+size+6)),url,212,10,MUTED)
 
     @staticmethod
     def rows(d,rows,scroll):

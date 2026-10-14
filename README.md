@@ -20,8 +20,9 @@ Individual screens: [home](docs/home.png) · [sections](docs/sections.png) · [t
 
 - Raspberry Pi Zero 2 W (512 MB) and a Waveshare 1.44" ST7735S (128×128) or 1.3" ST7789 (240×240) HAT on SPI0/CE0
 - Kali Linux ARM (or any Debian with `python3-pil python3-spidev python3-gpiozero fonts-dejavu-core`; the `lgpio` packages are vendored under `deploy/lgpio` for offline installs)
-- The attack tools assume the Kali toolchain (`aircrack-ng`, `reaver`, `macchanger`, `tcpdump`, `tshark`, `nmap`, `responder`, …) — all present on a stock Kali image
+- The attack tools assume the Kali toolchain (`aircrack-ng`, `reaver`, `macchanger`, `tcpdump`, `tshark`, `nmap`, `responder`, …) — all present on a stock Kali image; the Rogue AP also needs `hostapd` (`sudo apt install hostapd`; `dnsmasq` ships with Kali)
 - Optional: an external monitor-mode adapter such as the Alfa AWUS036ACS (see below)
+- Optional: a passive piezo buzzer on GPIO 18 + GND for the click/chime/alarm sounds (see below)
 
 ## Install
 
@@ -56,6 +57,8 @@ Check the service with `systemctl status nightshade` and `journalctl -u nightsha
 
 The pull and the installer write to `/opt`, `/etc`, `/boot` and the home tree, which the app's systemd sandbox keeps read-only — so the tool starts the `nightshade-ota` unit to do the work. That unit runs as root, outside the sandbox, and only ever executes the fixed `deploy/ota-apply.sh` from the repository; only root can start a systemd unit. The update itself travels over plain HTTPS from GitHub, with no credentials stored on the device.
 
+**System → Update check** reads the installed revision with `git rev-parse` and the remote one with `git ls-remote` (a read-only fetch — it works inside the sandbox without elevating), then reports *Up to date* or *Update waiting*, without applying anything.
+
 ## Controls
 
 | Control | Action |
@@ -68,15 +71,20 @@ The pull and the installer write to `/opt`, `/etc`, `/boot` and the home tree, w
 | Settings → Rotate screen | Rotate 90 degrees and save preference |
 | Settings → Sleep screen | Black screen; next button wakes it |
 | Settings → Test buttons | Display the last button pressed |
+| Settings → Test colors | Eight labelled color samples |
 | Settings → Update from GitHub | OTA update (pull, reinstall, restart) |
+| Settings → Dashboard QR | Show the dashboard URL as a QR code |
+| Settings → Theme | Cycle the palette (Violet, Acid, Amber, Ice) |
 
 Browser keyboard: arrows, Enter, Escape, and number keys 1/2/3. Script buttons open a confirmation dialog. Only one script runs at once. Returning home does not stop a running script; use KEY3.
+
+A minute with no input fades the panel into an idle crescent-and-stars animation; the next joystick or button press returns the UI. A long-running job (the output page) never triggers it.
 
 ## Hardware profile
 
 `config.json` selects `ST7735_128` (default) or `ST7789_240`, rotation and SPI speed. On this hardware the panel is driven by a small C GPIO bit-bang helper (`nightshade/nslcd_bitbang.c`, built by `deploy/install.sh`), not the SoC's hardware SPI: the bcm2835 SPI peripheral does not drive this HAT (every clock, mode and chip-select combination leaves it white, while GPIO-toggled writes are pixel-perfect). See `docs/validation.md`. At boot the panel holds a branded DarkSec Labs splash — a public-domain skull crest over the `DARKSEC LABS` wordmark (see `THIRD_PARTY.md`) — for a few seconds. The interface itself is a deliberately dark theme, so the splash is the quick check that the glass is alive, in colour and the right way up before the dark UI takes over. `Settings → Test colors` displays eight labeled color samples. Preferences saved through the UI override the initial rotation. After changing the hardware profile, restart the service. These SPI HATs have no reliable model identification; visually confirm the screen model and orientation. Driver initialization succeeding alone does not prove the physical screen is correct.
 
-BCM GPIO pins: joystick UP 6, DOWN 19, LEFT 5, RIGHT 26, center 13; KEY1 21, KEY2 20, KEY3 16. Display SPI0/CE0: MOSI 10, CLK 11, CS 8, DC 25, reset 27, backlight 24.
+BCM GPIO pins: joystick UP 6, DOWN 19, LEFT 5, RIGHT 26, center 13; KEY1 21, KEY2 20, KEY3 16. Display SPI0/CE0: MOSI 10, CLK 11, CS 8, DC 25, reset 27, backlight 24. Optional buzzer: GPIO 18.
 
 No framebuffer driver is needed: Nightshade clocks the panel out itself with a small GPIO bit-bang helper. A missing display causes an explicit warning and leaves browser control available. Restart after correcting hardware configuration.
 
@@ -86,14 +94,16 @@ No framebuffer driver is needed: Nightshade clocks the panel out itself with a s
 
 | Section | Tools |
 |---|---|
-| Wi-Fi | Wi-Fi scan, Wi-Fi link, **Targets** list, **Target −/+**, **Access point** detail, Monitor on/off, **Deauth**, 18-second capture, **Handshake** capture, **Crack handshake**, **WPS scan** (`wash`), **WPS attack** (`reaver`), **Pixie dust** (`reaver -K`), **Randomize MAC** (`macchanger`) |
+| Wi-Fi | access-point scan, link details, **Targets** picker, **Access point** info, **Monitor on/off**, **Deauth**, **Handshake**, **Handshake hunt**, **Rogue AP**, **Crack handshake**, **WPS scan/attack/pixie**, **Randomize MAC** |
 | Bluetooth | discover Bluetooth/BLE devices (`bluetoothctl`), classic inquiry (`hcitool`), adapter details, **HCI monitor** (`btmon`), **Devices** list, **GATT reader** (`gatttool`), **BT ping** (`l2ping`), **SDP browse** (`sdptool`) |
 | Network | gateway ping, DNS check, interface addresses, LAN sweep (`arp-scan`), port scan (`nmap`), **deep scan** (`nmap -sV -p-`), **packet sniff** (`tcpdump`), **saved captures**, **capture summary** (`capinfos`), **capture analysis** (`tshark`), **stream follow** (`tshark`), **HTTP watch** (`ngrep`), **Responder** poisoning, **Sockets & routes** (`ss`/`ip`), Tailscale status |
-| System | vital signs, top processes, disk usage, USB devices, radio switches, app log, **OTA update** (`git pull`) |
+| System | vital signs, top processes, disk usage, USB devices, radio switches, app log, **Update check**, **OTA update** (`git pull`), **Reboot**, **Shut down** |
 
 ### Wi-Fi attack flow
 
 **Targets** scans and saves the access-point list, then **Target −/+** picks which one the attack tools act on; **Access point** shows the selection. **Deauth** (16 frames, `aireplay-ng`) and **Handshake** (35-second targeted capture) need monitor mode, so run **Monitor on** first — and remember the adapter caveat below. **WPS scan** (`wash`) lists WPS-enabled access points and **WPS attack** (`reaver`) runs a bounded four-minute pass on the selected target — it stops on its own and a re-run resumes the session, so repeat runs eventually finish the job. **Pixie dust** (`reaver -K`) attempts the offline WPS bypass in minutes instead of hours. **Randomize MAC** (`macchanger`) spoofs the external adapter's address (it is explicitly brought down and back up around the change, which also keeps the built-in link out of the way). **Crack handshake** unpacks `rockyou` into the state directory the first time (a few minutes of SD writes on this CPU) and cracks the newest capture with `aircrack-ng`; stop it any time with **KEY3**. These tools are for authorised testing only.
+
+**Handshake hunt** is the hands-free version of the manual flow: with monitor mode on and a target picked, it repeats *deauth (16 frames) → 8-second capture* until `aircrack-ng` sees a handshake in one of the rounds, prints which file it landed in, and stops — up to eight minutes, and **KEY3** stops it at any point. **Rogue AP** twins the selected target on the external adapter (hostapd, with the target's SSID, channel and a WPA2 passphrase), serves DHCP and wildcard DNS through dnsmasq, and answers every HTTP request with a portal sign-in page that logs the submitted fields. It is bounded to five minutes and always restores the adapter; here too, the built-in link stays up while only the external adapter changes role. Both are strongly *authorised testing only* — they actively disrupt or impersonate the network.
 
 ### Packet capture
 
@@ -115,6 +125,16 @@ Notes:
 - `airmon-ng check kill` is deliberately **not** run — killing dhcpcd/NetworkManager would drop the very link you manage the device over.
 
 A few tools need raw-socket or admin privileges (`airmon-ng`, `airodump-ng`, `arp-scan`, `nmap -sS`, `nmap -sV`, `hcitool`, `l2ping`, `responder`, `ngrep`, `tcpdump`, `tshark`). They run through the passwordless `sudo` already configured for the `kali` account (`sudo -n`); the service unit therefore does **not** set `NoNewPrivileges`, so a script can elevate only to those specific commands. Everything else runs unprivileged, and the rest of the systemd sandbox (`ProtectSystem=strict`, `ProtectHome=read-only`, `PrivateTmp`) is unchanged — the only writable paths are the state directory and responder's package directory (`/usr/share/responder`, whose log and SQLite database paths the package hardcodes).
+
+## Look and feel
+
+- **Themes** — Settings → Theme cycles Violet, Acid, Amber and Ice. The whole UI (menu, accents, selection bar) is drawn from a palette table, so a theme repaints every page at once; the choice is saved in `~/.local/state/nightshade/preferences.json` alongside the rotation.
+- **Screen saver** — after a minute with no input the panel shows a crescent moon and drifting stars. Any key or joystick movement returns normal UI. The output page is excluded so long jobs stay visible.
+- **Dashboard QR** — Settings → Dashboard QR renders the dashboard URL as a QR code on the panel. Scan it with a phone that is already on the Tailnet and the login page opens. The URL uses the Tailscale address when known, otherwise the first non-link-local interface address.
+
+## Optional extras
+
+- **Buzzer** — wire a passive piezo between **GPIO 18** and GND for audible feedback: a click on every input, a two-tone chime when a job finishes and a three-beep alarm when a job prints a handshake. Without a buzzer the PWM pin is simply silent. The sounds run on their own threads, so the UI never blocks on them.
 
 ## Security model
 

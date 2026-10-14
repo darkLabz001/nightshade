@@ -38,6 +38,25 @@ def run(argv, timeout=25, stdin=None):
         return 124, 'Timed out: ' + ' '.join(argv)
 
 
+HANDSHAKE = re.compile(r'wpa \((\d+)\s+handshakes?\)', re.I)
+
+
+def has_handshake(output):
+    """True when aircrack-ng reports a handshake for the capture.
+
+    aircrack prints a per-network count (``WPA (1 handshake)``) when a
+    handshake is present and the flat ``No valid WPA handshakes
+    found.`` when there is none, so a bare substring test would count
+    the negative line as a hit. The count is used whenever it is
+    available.
+    """
+    counts = HANDSHAKE.findall(output)
+    if counts:
+        return any(int(count) > 0 for count in counts)
+    text = output.lower()
+    return 'handshake' in text and 'no valid wpa handshakes' not in text
+
+
 def monitor_interface():
     """Return the interface currently in monitor mode, if any."""
     rc, out = run(['iw', 'dev'], 8)
@@ -318,7 +337,7 @@ def handshake():
     if not caps:
         print('No capture written'); return
     rc, out = run(['aircrack-ng', str(caps[0])], 20, stdin=subprocess.DEVNULL)
-    if any('handshake' in line.lower() for line in out.splitlines()):
+    if has_handshake(out):
         print(f'Handshake captured -> {caps[0].name}')
     else:
         print(f'No handshake yet in {caps[0].name}')

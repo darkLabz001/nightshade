@@ -211,4 +211,121 @@ class HTTPTests(unittest.TestCase):
         for _ in range(5):self.assertEqual(self.request('/api/login',{'key':'bad'})[0],401)
         self.assertEqual(self.request('/api/login',{'key':'bad'})[0],429)
 
+class InterfaceTests(unittest.TestCase):
+    """Settings: themes, the dashboard QR and the idle screen saver."""
+
+    def _scripts(self):
+        return [{'id':'a','name':'A','argv':[sys.executable,'-c','print(1)']}]
+
+    def _settings(self,runner):
+        model=Model(self._scripts())
+        for _ in range(3):model.key('DOWN',runner)   # home -> Settings
+        model.key('OK',runner)
+        self.assertEqual(model.page,'settings')
+        return model
+
+    def test_unknown_theme_falls_back_to_default(self):
+        from nightshade import ui
+        model=Model([],theme='Nope')
+        self.assertEqual(model.theme,'Violet')
+        self.assertEqual(ui.VIOLET,'#cfa8ff')
+
+    def test_theme_rebinds_palette(self):
+        from nightshade import ui
+        Model([],theme='Acid')
+        self.assertEqual(ui.VIOLET,'#7dff9a')
+        self.assertEqual(ui.BG,'#020602')
+        self.assertEqual(ui.SELECT,'#122a16')
+        Model([],theme='Violet')      # leave the shared globals tidy
+        self.assertEqual(ui.VIOLET,'#cfa8ff')
+
+    def test_settings_seven_items_wrap(self):
+        runner=Runner(self._scripts(),ROOT)
+        model=self._settings(runner)
+        for _ in range(6):model.key('DOWN',runner)
+        self.assertEqual(model.index,6)
+        model.key('DOWN',runner);self.assertEqual(model.index,0)
+        model.key('UP',runner);self.assertEqual(model.index,6)
+
+    def test_settings_theme_action_and_qr(self):
+        runner=Runner(self._scripts(),ROOT)
+        model=self._settings(runner)
+        model.index=6
+        self.assertEqual(model.key('OK',runner),'theme')
+        model.index=5
+        self.assertIsNone(model.key('OK',runner))
+        self.assertEqual(model.page,'qr')
+        model.key('OK',runner)                     # any key leaves
+        self.assertEqual(model.page,'settings')
+
+    def test_dashboard_url(self):
+        self.assertEqual(Model._dashboard_url({'tail_ip':'100.1.2.3'}),
+                         'http://100.1.2.3:8090')
+        self.assertEqual(Model._dashboard_url(
+            {'addresses':[{'interface':'wlan0','ip':'192.168.1.9'}]}),
+            'http://192.168.1.9:8090')
+        # Loopback and link-local addresses are useless to a phone.
+        self.assertEqual(Model._dashboard_url(
+            {'addresses':[{'interface':'lo','ip':'127.0.0.1'}]}),'')
+        self.assertEqual(Model._dashboard_url({}),'')
+
+    def test_qr_page_renders(self):
+        for theme in ('Violet','Acid','Amber','Ice'):
+            model=Model([],theme=theme);model.page='qr'
+            img=model.render({'tail_ip':'100.64.0.2'},
+                             {'name':'','status':'idle','lines':[]},True,0)
+            self.assertEqual(img.size,(240,240))
+
+    def test_saver_after_a_minute_idle(self):
+        model=Model([])
+        model.last_input=time.monotonic()-120
+        img=model.render({},{'name':'','status':'idle','lines':[]},True,0)
+        self.assertEqual(img.size,(240,240))
+        # The crescent is drawn on the left, clear of the cut-out.
+        self.assertNotEqual(img.getpixel((90,102))[:3],(0,0,0))
+        # A long job keeps the output page awake regardless of idling.
+        model.page='output'
+        img=model.render({},{'name':'J','status':'running','lines':[]},True,0)
+        self.assertEqual(img.getpixel((100,2))[:3],(207,168,255))
+
+    def test_preferences_persist_theme(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config={'bind':'127.0.0.1','port':0,'display':{'type':'ST7789_240'},'scripts':[]}
+            app=Application(config,tmp,simulate=True)
+            app.model.theme='Ice'
+            app._save_preferences()
+            (Path(tmp)/'preferences.json').read_text()
+            import json as _json
+            self.assertEqual(_json.loads((Path(tmp)/'preferences.json').read_text()),
+                             {'rotation':0,'theme':'Ice'})
+            app.close()
+
+class HandshakeParseTests(unittest.TestCase):
+    """aircrack-ng output parsing, shared by the capture tools."""
+
+    @staticmethod
+    def _wifi():
+        spec = importlib.util.spec_from_file_location(
+            'wifi_tools', ROOT / 'scripts' / 'wifi_tools.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_real_handshake(self):
+        wifi = self._wifi()
+        self.assertTrue(wifi.has_handshake(
+            '   #  BSSID              ESSID                     Encryption\n'
+            '   1  AA:BB:CC:DD:EE:FF  Test  WPA (1 handshake)'))
+
+    def test_no_handshake(self):
+        wifi = self._wifi()
+        self.assertFalse(wifi.has_handshake('No valid WPA handshakes found.'))
+        self.assertFalse(wifi.has_handshake('No networks found, exiting.'))
+
+    def test_zero_handshake_count(self):
+        wifi = self._wifi()
+        self.assertFalse(wifi.has_handshake(
+            '   1  AA:BB:CC:DD:EE:FF  Test  WPA (0 handshakes)'))
+
+
 if __name__=='__main__':unittest.main()

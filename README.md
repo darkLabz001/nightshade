@@ -1,6 +1,6 @@
 # Nightshade
 
-Source: [github.com/darkblightHQ/nightshade](https://github.com/darkblightHQ/nightshade)
+Source: [github.com/darkLabz001/nightshade](https://github.com/darkLabz001/nightshade)
 
 An independent handheld interface for your Raspberry Pi Zero 2 W, with an emo / gothic dark theme: ink black, dusty violet, crimson, crescent motifs and serif titles. Tested on the Waveshare 1.44-inch 128×128 ST7735S LCD HAT, with a configurable 1.3-inch 240×240 ST7789 profile.
 
@@ -27,7 +27,7 @@ Individual screens: [home](docs/home.png) · [sections](docs/sections.png) · [t
 ## Install
 
 ```bash
-sudo git clone https://github.com/darkblightHQ/nightshade.git /opt/nightshade
+sudo git clone https://github.com/darkLabz001/nightshade.git /opt/nightshade
 sudo bash /opt/nightshade/deploy/install.sh
 ```
 

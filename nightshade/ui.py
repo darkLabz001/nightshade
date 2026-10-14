@@ -166,7 +166,8 @@ class Model:
                     else:
                         self.notice='Job busy or failed';self.page='output'
                 if self.index==5:self.page='qr'
-                if self.index==6:return 'theme'
+                if self.index==6:self.page='radar'
+                if self.index==7:return 'theme'
         elif self.page in ('network','system') and key in ('UP','DOWN'):
             self.scroll=max(0,min(8,self.scroll+(1 if key=='DOWN' else -1)))
         return None

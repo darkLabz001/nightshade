@@ -279,8 +279,14 @@ class Model:
                 d.text((14,20),'WIFI RADAR',font=font(15,True),fill=VIOLET)
                 with self._radar_lock:
                     aps=list(self._radar_aps)
-                if time.monotonic()-self._radar_stamp>4.0:
+                # Never sweep while a tool runs: the burst
+                # would yank the monitor interface's channel
+                # out from under it.
+                busy=job.get('status') in ('running','stopping')
+                if not busy and time.monotonic()-self._radar_stamp>10.0:
                     self._radar_scan()
+                if busy:
+                    d.text((14,52),'TOOL RUNNING',font=font(10,True),fill=RED)
                 self._radar(img,d,aps)
                 d.text((12,226),'1 BACK   2 HOME   3 STOP',font=font(11),fill=MUTED)
                 d.ellipse((222,226,232,236),fill=VIOLET if hardware else RED)
@@ -320,9 +326,10 @@ class Model:
                 if str(scripts) not in sys.path:
                     sys.path.insert(0,str(scripts))
                 import wifi_tools
-                aps=wifi_tools.radar_networks() or []
-                with self._radar_lock:
-                    self._radar_aps=aps; self._radar_stamp=time.monotonic()
+                aps=wifi_tools.radar_networks()
+                if aps is not None:
+                    with self._radar_lock:
+                        self._radar_aps=aps; self._radar_stamp=time.monotonic()
             except Exception:
                 pass
             finally:
@@ -345,7 +352,12 @@ class Model:
             chan=ap.get('channel','1')
             try: ch=int(chan)
             except: ch=1
-            a2=(ch*0.35)+t*0.4
+            # Fixed angle per channel, with a small stable
+            # offset from the BSSID so same-channel networks
+            # do not stack exactly; blips never drift.
+            try: off=(int(ap.get('bssid','')[-2:],16)%40)*0.02
+            except ValueError: off=0.0
+            a2=(ch*0.35)+off
             px=cx+int(dist*math.cos(a2)); py=cy+int(dist*math.sin(a2))
             sz=max(1,min(3,(rssi+95)//15))
             d.ellipse((px-sz,py-sz,px+sz,py+sz),fill=BRIGHT)

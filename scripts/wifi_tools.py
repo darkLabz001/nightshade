@@ -145,50 +145,77 @@ def scan_networks():
 
 
 def radar_networks():
-    """Access points seen by the external adapter alone.
+    """Access points heard by the external adapter alone.
 
-    The radar sweeps only the external adapter with a plain
-    ``iw scan``: the uplink is never disturbed, and the result
-    carries real dBm signal values for plotting. While an
-    interface sits in monitor mode a scan is impossible, so the
-    sweep reports nothing and the last plot holds.
+    The radar listens passively on a monitor interface, so the
+    uplink is never disturbed and no scan request is sent (the
+    Alfa's scan path stalls when ``iw scan`` is called
+    repeatedly). When an interface already sits in monitor mode
+    it is used as-is; otherwise the external adapter is flipped
+    into monitor mode for the burst and returned to managed
+    mode afterwards. Returns None when no sweep could be made --
+    the caller keeps its last plot -- and a list, possibly
+    empty, when the sweep completed.
     """
     interface = wifi_adapter()
     if interface == uplink_interface():
         # No external adapter present: never sweep the uplink.
-        return []
-    if monitor_interface():
-        return []
-    rc, out = run(['sudo', '-n', 'iw', 'dev', interface, 'scan'], 20)
-    if rc != 0:
+        return None
+    restore = False
+    listen = monitor_interface()
+    if not listen:
+        rc, _ = run(['sudo', '-n', 'airmon-ng', 'start', interface], 45)
+        if rc != 0:
+            return None
+        listen = monitor_interface()
+        if not listen:
+            # The driver may be slow to rename; put it back.
+            run(['sudo', '-n', 'airmon-ng', 'stop', interface], 45)
+            return None
+        restore = True
+    try:
+        return _radar_burst(listen)
+    finally:
+        if restore:
+            run(['sudo', '-n', 'airmon-ng', 'stop', listen], 45)
+
+
+def _radar_burst(interface):
+    """A short passive listen, parsed into radar entries."""
+    CAPTURES.mkdir(parents=True, exist_ok=True)
+    for old in CAPTURES.glob('radar-*'):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    run(['sudo', '-n', 'timeout', '12', 'airodump-ng', '--output-format',
+         'csv', '--write', str(CAPTURES / 'radar'), interface], 30)
+    sheets = sorted(CAPTURES.glob('radar-*.csv'))
+    if not sheets:
         return []
     aps = {}
-    bssid = None
-    for line in out.splitlines():
-        line = line.strip()
-        if line.startswith('BSS '):
-            bssid = line[4:21]
-            if not MAC.match(bssid):
-                bssid = None
-                continue
-            aps.setdefault(bssid.upper(),
-                           {'bssid': bssid.upper(), 'essid': '(hidden)',
-                            'channel': '?', 'signal': -100, 'security': 'open'})
-        elif bssid and ':' in line:
-            ap = aps[bssid.upper()]
-            if line.startswith('signal:'):
-                try:
-                    ap['signal'] = int(float(line.split(':', 1)[1].split('dBm')[0]))
-                except ValueError:
-                    pass
-            elif line.startswith('SSID:'):
-                ap['essid'] = line.split(':', 1)[1].strip() or '(hidden)'
-            elif line.startswith('DS Parameter set:'):
-                ap['channel'] = line.split('channel', 1)[1].strip() or '?'
-            elif line.startswith('RSN:'):
-                ap['security'] = 'WPA2'
-            elif line.startswith('WPA:'):
-                ap['security'] = 'WPA'
+    section = 'ap'
+    for row in sheets[-1].read_text(errors='replace').splitlines():
+        if not row.strip():
+            # Blank lines only separate the sections; the
+            # file opens with one before the AP header.
+            continue
+        cells = [cell.strip() for cell in row.split(',')]
+        if cells[0].startswith('Station MAC'):
+            section = 'client'
+            continue
+        if section != 'ap' or cells[0].startswith('BSSID'):
+            continue
+        try:
+            bssid, channel, privacy = cells[0], cells[3], cells[5]
+            power, essid = int(cells[8]), cells[13]
+        except (IndexError, ValueError):
+            continue
+        if not MAC.match(bssid) or not -100 <= power <= 0:
+            continue
+        aps[bssid.upper()] = {'bssid': bssid.upper(), 'essid': essid or '(hidden)',
+                              'channel': channel or '?', 'signal': power,
+                              'security': privacy or 'open'}
     return sorted(aps.values(), key=lambda net: net['signal'], reverse=True)
 
 
@@ -344,8 +371,13 @@ def capture():
     section = 'ap'
     for row in sheets[0].read_text(errors='replace').splitlines():
         if not row.strip():
-            section = 'client'; continue
+            # Blank lines only separate the sections; the
+            # file opens with one before the AP header.
+            continue
         cells = [cell.strip() for cell in row.split(',')]
+        if cells[0].startswith('Station MAC'):
+            section = 'client'
+            continue
         if cells[0].startswith('BSSID'):
             continue
         if section == 'ap':
@@ -353,8 +385,6 @@ def capture():
                 aps.append((int(cells[8]), cells[3], cells[13]))
             except (IndexError, ValueError):
                 continue
-        elif cells[1].startswith('Station MAC') or not cells[0]:
-            continue
         elif len(cells) > 1 and MAC.match(cells[0]):
             clients.append(cells[0])
     aps.sort(reverse=True)

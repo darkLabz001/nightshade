@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 """OTA update for Nightshade.
 
-Pulls the GitHub repository on the device (/opt/nightshade is a git
-clone of the project) and reinstalls both trees. Runs through the
-passwordless sudo already configured for the service account: git and
-install.sh need root because /opt is outside the sandboxed home tree.
+Starts the nightshade-ota systemd unit and tails its log, so
+the panel shows live progress. The unit runs as a root service
+outside this app's sandbox on purpose: pulling and installing
+means writing to /opt, /etc and the home tree, which the
+sandboxed service cannot touch. The unit only ever runs the
+fixed apply script from the repository, and only root can
+start a systemd unit.
 """
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 REPO = '/opt/nightshade'
+STATE = Path.home() / '.local' / 'state' / 'nightshade'
+LOG = STATE / 'ota.log'
+DONE = '__OTA_DONE__'
+REMOTE = 'https://github.com/darkblightHQ/nightshade.git'
 
 
-def run(argv, timeout=60):
+def run(argv, timeout=30):
     try:
         done = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
         return done.returncode, (done.stdout or '') + (done.stderr or '')
@@ -25,29 +33,35 @@ def run(argv, timeout=60):
 
 def update():
     print('NIGHTSHADE / OTA UPDATE\n')
-    rc, out = run(['sudo', '-n', 'git', '-C', REPO, 'pull', '--ff-only'], 120)
-    lines = [line for line in out.splitlines() if line.strip()]
-    for line in lines[:6]:
-        print(line)
+    if not Path(REPO + '/.git').exists():
+        print('/opt/nightshade is not a git clone yet.')
+        print('Clone it first (as root):')
+        print(f'sudo git clone {REMOTE} /opt/nightshade')
+        return
+    LOG.write_text('')
+    rc, out = run(['sudo', '-n', 'systemctl', '--no-block',
+                   'start', 'nightshade-ota'], 20)
     if rc != 0:
-        print('\nUpdate failed — is the network up?')
+        print('Could not start the update unit:')
+        for line in out.splitlines()[:4]:
+            print(line)
         return
-    if 'Already up to date' in out:
-        print('\nAlready the newest version')
-        return
-    print('\nApplying to both trees…')
-    rc, out = run(['sudo', '-n', 'bash', REPO + '/deploy/install.sh'], 300)
-    for line in [l for l in out.splitlines() if l.strip()][-6:]:
-        print(line)
-    if rc != 0:
-        print('\nInstalled with errors; check the log')
-        return
-    print('\nUpdate applied — restarting now')
-    sys.stdout.flush()
-    # Let the panel show the final line before the restart takes
-    # the running job (and the old code) down with it.
-    time.sleep(3)
-    run(['sudo', '-n', 'systemctl', 'restart', 'nightshade'], 30)
+    print('Pulling from GitHub…\n')
+    seen = 0
+    deadline = time.time() + 280
+    while time.time() < deadline:
+        if LOG.exists():
+            text = LOG.read_text(errors='replace')
+            complete = text[:text.rfind('\n') + 1] if '\n' in text else ''
+            if len(complete) > seen:
+                for line in complete[seen:].splitlines():
+                    print(line)
+                seen = len(complete)
+            if DONE in text:
+                break
+        time.sleep(1)
+    else:
+        print('\nStill running — check the log again shortly')
 
 
 mode = sys.argv[1] if len(sys.argv) > 1 else 'update'

@@ -51,9 +51,9 @@ Check the service with `systemctl status nightshade` and `journalctl -u nightsha
 
 ## OTA updates
 
-**Settings → Update from GitHub** on the handheld (or **System → OTA update** in the tool list) pulls the latest commit from this repository into `/opt/nightshade` — which is a git clone — runs `deploy/install.sh` to refresh both trees, and restarts the service. The output page doubles as the progress screen and **KEY3** can still stop it. If there is nothing new, the tool reports *Already the newest version* and touches nothing.
+**Settings → Update from GitHub** on the handheld (or **System → OTA update** in the tool list) pulls the latest commit from this repository into `/opt/nightshade` — which is a git clone — runs `deploy/install.sh` to refresh both trees, and restarts the service. The output page shows the apply log live, and **KEY3** can still stop it. If there is nothing new, the tool reports *Already the newest version* and touches nothing.
 
-The update needs network access to GitHub (plain HTTPS, no credentials stored on the device), so it runs over Tailscale or the LAN like any other pull.
+The pull and the installer write to `/opt`, `/etc`, `/boot` and the home tree, which the app's systemd sandbox keeps read-only — so the tool starts the `nightshade-ota` unit to do the work. That unit runs as root, outside the sandbox, and only ever executes the fixed `deploy/ota-apply.sh` from the repository; only root can start a systemd unit. The update itself travels over plain HTTPS from GitHub, with no credentials stored on the device.
 
 ## Controls
 

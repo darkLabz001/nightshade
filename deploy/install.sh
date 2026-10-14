@@ -96,6 +96,12 @@ if [ -e /dev/gpiochip0 ]; then chown root:gpio /dev/gpiochip0; chmod 0660 /dev/g
 # Install the service.
 install -m 644 "$PROJECT/deploy/nightshade.service" /etc/systemd/system/nightshade.service
 
+# The OTA unit. It runs as root outside the sandboxed service
+# on purpose: applying an update writes to /opt, /etc, /boot
+# and the home tree. The Settings menu starts it; the tool
+# (scripts/ota_update.py) only triggers it and tails the log.
+install -m 644 "$PROJECT/deploy/nightshade-ota.service" /etc/systemd/system/nightshade-ota.service
+
 # Install the first-boot provisioning script/unit. Keeping these in the repo
 # means the "do not wait for the network" fix survives a reflash of the root
 # filesystem. Takes effect on the next boot.

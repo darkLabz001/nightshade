@@ -1,0 +1,16 @@
+[Unit]
+Description=Nightshade OTA apply (pull, reinstall, restart)
+# This unit deliberately runs unsandboxed as root: updating the
+# installation means writing to /opt, /etc, /boot and the home
+# tree, which the sandboxed nightshade.service cannot touch. It
+# only ever runs the fixed apply script from the repository, and
+# only root can start a systemd unit.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nightshade/deploy/ota-apply.sh
+
+[Install]
+WantedBy=multi-user.target

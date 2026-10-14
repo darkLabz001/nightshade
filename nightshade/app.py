@@ -78,7 +78,7 @@ class Application:
             return {'page':self.model.page,'selected':self.model.index,'last_key':self.model.last_key,
                 'hardware':bool(self.hat),'hardware_error':self.hardware_error,
                 'rotation':self.rotation,'theme':self.model.theme,'display':self.config['display']['type'],'stats':dict(self.stats),
-                'job':self.runner.snapshot(),'scripts':[{k:s.get(k,'') for k in ('id','name','description','section')} for s in self.config['scripts']],
+                'job':self.runner.snapshot(),'scripts':[{k:s.get(k,'') for k in ('id','name','description','section','page')} for s in self.config['scripts']],
                 'sections':[{'id':s['id'],'name':s['name'],'description':s.get('description','')} for s in self.model.sections]}
 
     def sampler(self):
